@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TeknisiOS - Manajemen Servis HP & AI Assistant</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Marked.js & DOMPurify for Chat -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            50: '#f8fafc',
+                            100: '#f1f5f9',
+                            200: '#e2e8f0',
+                            300: '#cbd5e1',
+                            400: '#94a3b8',
+                            500: '#64748b',
+                            600: '#475569',
+                            700: '#334155',
+                            800: '#1e293b',
+                            900: '#0f172a',
+                        },
+                        primary: { DEFAULT: '#2563eb', hover: '#1d4ed8' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Base Styles */
+        body { font-family: 'Inter', -apple-system, sans-serif; background-color: #f8fafc; color: #334155; }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Status Badges */
+        .badge { padding: 0.25rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px; }
+        .badge-pending { background: #fefce8; color: #a16207; border: 1px solid #fde047; }
+        .badge-process { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .badge-done { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+        .badge-cancel { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+
+        /* Brand Badges */
+        .brand-badge { padding: 2px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+        .brand-oppo { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+        .brand-vivo { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+        .brand-realme { background: #fefce8; color: #ca8a04; border: 1px solid #fde047; }
+        .brand-other { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+
+        /* Chat Styles */
+        .chat-bubble { max-width: 85%; padding: 0.75rem 1rem; border-radius: 1rem; margin-bottom: 1rem; font-size: 0.95rem; line-height: 1.5; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .chat-user { background: #2563eb; color: #ffffff; margin-left: auto; border-top-right-radius: 0.25rem; }
+        .chat-ai { background: #ffffff; border: 1px solid #e2e8f0; color: #334155; margin-right: auto; border-top-left-radius: 0.25rem; }
+        .chat-ai strong { color: #0f172a; font-weight: 700; }
+        .chat-ai ul { list-style: disc; margin-left: 1.2rem; margin-top: 0.5rem; }
+        .chat-ai li { margin-bottom: 0.25rem; }
+        .chat-ai p { margin-bottom: 0.5rem; }
+        .chat-ai p:last-child { margin-bottom: 0; }
+        .chat-ai pre { background: #1e293b; color: #f8fafc; padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; margin-top: 0.5rem; font-size: 0.85rem; }
+
+        /* Loader */
+        .typing-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; animation: typing 1.4s infinite ease-in-out both; margin: 0 2px; }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+        /* Modal Transition */
+        .modal { transition: opacity 0.2s ease-in-out, visibility 0.2s; visibility: hidden; opacity: 0; }
+        .modal.active { visibility: visible; opacity: 1; }
+        .modal-content { transform: scale(0.95); transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+        .modal.active .modal-content { transform: scale(1); }
+        
+        /* Table Styling */
+        .custom-table tr:nth-child(even) { background-color: #f8fafc; }
+        .custom-table tr:hover { background-color: #f1f5f9; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <!-- LOGIN OVERLAY -->
+    <div id="login-overlay" class="fixed inset-0 z-[60] bg-slate-50 flex items-center justify-center transition-opacity duration-500">
+        <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center border border-slate-200 m-4 relative overflow-hidden">
+            <!-- Decor bg -->
+            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-cyan-400"></div>
+            
+            <div class="mb-6 flex justify-center">
+                 <div class="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200 rotate-3 transition-transform hover:rotate-0">
+                    <i class="fas fa-microchip text-4xl"></i>
+                </div>
+            </div>
+            
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">TeknisiOS</h2>
+            <p class="text-slate-500 mb-8 text-sm">Manajemen Servis HP & Asisten AI Terintegrasi</p>
+    
+            <!-- DYNAMIC LOGIN CONTAINER -->
+            <!-- Fixed: Replaced min-h-[44px] with inline style to prevent parser error -->
+            <div id="google-login-container" class="flex justify-center" style="min-height: 44px;">
+                <!-- Javascript will inject button here -->
+                <span class="text-xs text-slate-400 animate-pulse mt-2">Memuat Google Login...</span>
+            </div>
+            
+            <div class="relative my-6">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-slate-200"></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                    <span class="px-2 bg-white text-slate-400 text-xs uppercase font-bold tracking-wider">Atau</span>
+                </div>
+            </div>
+    
+            <button onclick="loginAsDemo()" class="w-full py-3 px-4 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded-lg transition-colors flex items-center justify-center gap-3 border border-slate-200 group">
+                <div class="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 group-hover:bg-white group-hover:text-slate-700 transition-colors">
+                    <i class="fas fa-user-secret"></i> 
+                </div>
+                Masuk Mode Demo (Lokal)
+            </button>
+            
+            <p class="mt-6 text-xs text-slate-400">
+                <i class="fas fa-info-circle mr-1"></i> Data disimpan terpisah untuk setiap metode login.
+            </p>
+        </div>
+    </div>
+
+    <!-- Sidebar (Fixed) -->
+    <aside id="sidebar" style="display: none;" class="fixed top-0 left-0 z-40 w-64 h-screen transition-transform -translate-x-full bg-white border-r border-slate-200 md:translate-x-0" aria-label="Sidebar">
+        <div class="h-full flex flex-col overflow-y-auto">
+            <!-- App Header -->
+            <div class="h-16 flex items-center px-6 border-b border-slate-100 flex-shrink-0">
+                <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-3 text-white shadow-sm shadow-blue-200">
+                    <i class="fas fa-microchip"></i>
+                </div>
+                <h1 class="font-bold text-lg tracking-tight text-slate-800">Teknisi<span class="text-blue-600">OS</span></h1>
+            </div>
+
+            <!-- User Profile Section -->
+            <div id="user-profile-section" class="px-6 py-4 border-b border-slate-100 bg-slate-50/50 hidden">
+                <div class="flex items-center gap-3">
+                    <img id="user-avatar" src="" alt="User" class="w-10 h-10 rounded-full border border-slate-200 shadow-sm bg-white">
+                    <div class="flex-1 min-w-0">
+                        <p id="user-name" class="text-sm font-bold text-slate-800 truncate">User</p>
+                        <p id="user-role" class="text-xs text-slate-500 truncate">Teknisi</p>
+                    </div>
+                </div>
+            </div>
+
+            <nav class="flex-1 px-3 py-6 space-y-1">
+                <button onclick="switchView('dashboard')" id="nav-dashboard" class="nav-item w-full flex items-center px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors bg-blue-50 text-blue-700 font-medium">
+                    <i class="fas fa-home w-6 text-center mr-2"></i> Dashboard
+                </button>
+                <button onclick="switchView('services')" id="nav-services" class="nav-item w-full flex items-center px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors">
+                    <i class="fas fa-tools w-6 text-center mr-2"></i> Data Servis
+                </button>
+                <button onclick="switchView('stock')" id="nav-stock" class="nav-item w-full flex items-center px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors">
+                    <i class="fas fa-box-open w-6 text-center mr-2"></i> Stok LCD
+                </button>
+                <button onclick="switchView('ai-assistant')" id="nav-ai-assistant" class="nav-item w-full flex items-center px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors group">
+                    <i class="fas fa-robot w-6 text-center mr-2 group-hover:text-blue-500"></i> Asisten Teknisi <span class="ml-auto bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold" style="font-size: 10px;">AI</span>
+                </button>
+            </nav>
+
+            <div class="p-4 border-t border-slate-100 mt-auto space-y-2">
+                <button onclick="openApiKeyModal()" class="w-full flex items-center px-3 py-2 text-slate-500 hover:text-slate-800 transition-colors text-xs font-medium rounded-lg hover:bg-slate-50">
+                    <i class="fas fa-key w-6 text-center mr-2"></i> API Key Settings
+                </button>
+                <button onclick="logout()" class="w-full flex items-center px-3 py-2 text-red-500 hover:text-red-700 transition-colors text-xs font-medium rounded-lg hover:bg-red-50">
+                    <i class="fas fa-sign-out-alt w-6 text-center mr-2"></i> Keluar
+                </button>
+                <div class="mt-4 text-slate-400 text-center font-medium uppercase tracking-wider" style="font-size: 10px;">
+                    Powered by Pollinations.ai
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Mobile Backdrop -->
+    <div id="mobile-backdrop" onclick="toggleSidebar()" class="fixed inset-0 z-30 bg-slate-900/50 hidden md:hidden transition-opacity"></div>
+
+    <!-- Main Content Area -->
+    <div id="main-content" style="display: none;" class="md:ml-64 min-h-screen flex flex-col bg-slate-50 transition-all duration-300">
+        
+        <!-- Header Mobile Toggle -->
+        <div class="md:hidden h-14 border-b border-slate-200 flex items-center px-4 bg-white shadow-sm z-20 sticky top-0">
+            <button onclick="toggleSidebar()" class="text-slate-500 hover:text-slate-800">
+                <i class="fas fa-bars text-lg"></i>
+            </button>
+            <span class="ml-4 font-bold text-slate-800">TeknisiOS</span>
+        </div>
+
+        <!-- VIEW: DASHBOARD -->
+        <div id="view-dashboard" class="view-section flex-1 p-6 md:p-8">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800">Status Rahman Cell</h2>
+                    <p class="text-slate-500 text-sm">Update hari ini: <span id="current-date" class="font-medium"></span></p>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6 mb-8">
+                <!-- Card 1: Pending -->
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-slate-500 text-xs uppercase font-bold tracking-wider mb-1">Servis Pending</p>
+                            <h3 class="text-3xl font-bold text-slate-800" id="dash-pending">0</h3>
+                        </div>
+                        <div class="w-10 h-10 bg-yellow-50 rounded-lg flex items-center justify-center text-yellow-600 border border-yellow-100"><i class="fas fa-clock"></i></div>
+                    </div>
+                </div>
+                <!-- Card 2: Process -->
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-slate-500 text-xs uppercase font-bold tracking-wider mb-1">Sedang Dikerjakan</p>
+                            <h3 class="text-3xl font-bold text-slate-800" id="dash-process">0</h3>
+                        </div>
+                        <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 border border-blue-100"><i class="fas fa-wrench"></i></div>
+                    </div>
+                </div>
+                <!-- Card 3: Done -->
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-slate-500 text-xs uppercase font-bold tracking-wider mb-1">Selesai Hari Ini</p>
+                            <h3 class="text-3xl font-bold text-slate-800" id="dash-done">0</h3>
+                        </div>
+                        <div class="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center text-green-600 border border-green-100"><i class="fas fa-check-circle"></i></div>
+                    </div>
+                </div>
+                
+                <!-- Card 4: Revenue -->
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-slate-500 text-xs uppercase font-bold tracking-wider mb-1">Total Pendapatan</p>
+                            <h3 class="text-xl font-bold text-emerald-600" id="dash-revenue">Rp 0</h3>
+                        </div>
+                        <div class="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600 border border-emerald-100"><i class="fas fa-wallet"></i></div>
+                    </div>
+                </div>
+
+                <!-- Card 5: Total Stock Quantity -->
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-slate-500 text-xs uppercase font-bold tracking-wider mb-1">Total Fisik LCD</p>
+                            <h3 class="text-3xl font-bold text-indigo-600" id="dash-total-stock">0</h3>
+                        </div>
+                        <div class="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600 border border-indigo-100"><i class="fas fa-boxes"></i></div>
+                    </div>
+                </div>
+
+                <!-- Card 6: Low Stock Warning Count -->
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-slate-500 text-xs uppercase font-bold tracking-wider mb-1">Item Perlu Restock</p>
+                            <h3 class="text-3xl font-bold text-red-600" id="dash-low-stock-count">0</h3>
+                        </div>
+                        <div class="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center text-red-600 border border-red-100"><i class="fas fa-exclamation-triangle"></i></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lower Section: Tables -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Recent Services -->
+                <div class="lg:col-span-2 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                        <h3 class="font-bold text-slate-800">Servis Terbaru</h3>
+                        <button onclick="switchView('services')" class="text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline">Lihat Semua</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse custom-table">
+                            <thead class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
+                                <tr>
+                                    <th class="px-6 py-3 font-bold tracking-wider">Pelanggan</th>
+                                    <th class="px-6 py-3 font-bold tracking-wider">Device</th>
+                                    <th class="px-6 py-3 font-bold tracking-wider">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dash-table-body" class="text-slate-700 text-sm divide-y divide-slate-100">
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Low Stock Alert List -->
+                <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col">
+                    <div class="px-6 py-4 border-b border-red-50 flex justify-between items-center bg-red-50/30">
+                        <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fas fa-bell text-red-500"></i> Peringatan Stok
+                        </h3>
+                    </div>
+                    <div class="flex-1 overflow-y-auto" style="max-height: 300px;">
+                        <ul id="dash-low-stock-list" class="divide-y divide-slate-100">
+                            <!-- Populated via JS -->
+                        </ul>
+                    </div>
+                    <div id="dash-low-stock-empty" class="hidden p-6 text-center text-slate-400 text-sm">
+                        <p>Stok aman terkendali.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: SERVICES (TABLE) -->
+        <div id="view-services" class="view-section hidden flex-1 flex flex-col h-full overflow-hidden">
+            <div class="p-6 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white shadow-sm z-10">
+                <h2 class="text-xl font-bold text-slate-800">Data Servis Masuk</h2>
+                <div class="flex gap-2 w-full md:w-auto">
+                    <div class="relative w-full md:w-64">
+                        <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400"><i class="fas fa-search"></i></div>
+                        <input type="text" id="search-input" onkeyup="renderTable()" placeholder="Cari nama, hp..." class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 p-2.5 outline-none transition-all focus:bg-white">
+                    </div>
+                    <button onclick="openModal('add')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shadow-sm shadow-blue-200">
+                        <i class="fas fa-plus mr-1"></i> Baru
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-auto p-0 bg-white">
+                <table class="w-full text-left custom-table">
+                    <thead class="bg-slate-50 text-slate-500 text-xs uppercase sticky top-0 z-10 shadow-sm border-b border-slate-200">
+                        <tr>
+                            <th class="px-6 py-4 font-bold tracking-wider">Tgl Masuk</th>
+                            <th class="px-6 py-4 font-bold tracking-wider">Pelanggan</th>
+                            <th class="px-6 py-4 font-bold tracking-wider">Unit & Kerusakan</th>
+                            <th class="px-6 py-4 font-bold tracking-wider">Biaya</th>
+                            <th class="px-6 py-4 font-bold tracking-wider">Status</th>
+                            <th class="px-6 py-4 font-bold tracking-wider text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="services-table-body" class="divide-y divide-slate-100 text-slate-700">
+                        <!-- Rows rendered by JS -->
+                    </tbody>
+                </table>
+                <div id="empty-state" class="hidden flex-col items-center justify-center py-20 text-slate-400">
+                    <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300">
+                        <i class="fas fa-inbox text-3xl"></i>
+                    </div>
+                    <p class="font-medium">Belum ada data servis.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: STOCK LCD -->
+        <div id="view-stock" class="view-section hidden flex-1 flex flex-col h-full overflow-hidden">
+            <div class="p-6 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white shadow-sm z-10">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800">Stok LCD</h2>
+                    <p class="text-xs text-slate-500 mt-1">Manajemen inventaris layar (Oppo, Realme, Vivo)</p>
+                </div>
+                <div class="flex gap-2 w-full md:w-auto">
+                    <select id="stock-filter-brand" onchange="renderStockTable()" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none transition-colors focus:bg-white">
+                        <option value="all">Semua Merk</option>
+                        <option value="Oppo">Oppo</option>
+                        <option value="Realme">Realme</option>
+                        <option value="Vivo">Vivo</option>
+                    </select>
+                    <input type="text" id="stock-search" onkeyup="renderStockTable()" placeholder="Cari tipe HP..." class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none transition-colors focus:bg-white">
+                    <button onclick="openStockModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shadow-sm shadow-green-200">
+                        <i class="fas fa-plus mr-1"></i> Tambah
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-auto p-0 bg-white">
+                <table class="w-full text-left custom-table">
+                    <thead class="bg-slate-50 text-slate-500 text-xs uppercase sticky top-0 z-10 shadow-sm border-b border-slate-200">
+                        <tr>
+                            <th class="px-6 py-4 font-bold tracking-wider">Merk</th>
+                            <th class="px-6 py-4 font-bold tracking-wider">Tipe HP / Model</th>
+                            <th class="px-6 py-4 font-bold tracking-wider text-center">Sisa Stok</th>
+                            <th class="px-6 py-4 font-bold tracking-wider">Harga Modal</th>
+                            <th class="px-6 py-4 font-bold tracking-wider">Harga Jual</th>
+                            <th class="px-6 py-4 font-bold tracking-wider text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stock-table-body" class="divide-y divide-slate-100 text-slate-700">
+                        <!-- Rows rendered by JS -->
+                    </tbody>
+                </table>
+                <div id="stock-empty-state" class="hidden flex-col items-center justify-center py-20 text-slate-400">
+                    <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300">
+                        <i class="fas fa-box-open text-3xl"></i>
+                    </div>
+                    <p class="font-medium">Stok LCD kosong.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: AI ASSISTANT -->
+        <div id="view-ai-assistant" class="view-section hidden flex-1 flex flex-col h-full bg-slate-50">
+            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-white shadow-sm z-10">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
+                        <i class="fas fa-robot text-xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-lg text-slate-800">Asisten Teknisi</h2>
+                        <p class="text-xs text-slate-500">Tanya solusi kerusakan, estimasi harga, atau cara perbaikan.</p>
+                    </div>
+                </div>
+                <button onclick="clearChat()" class="text-xs text-slate-400 hover:text-red-500 transition-colors p-2 rounded hover:bg-red-50" title="Hapus Chat"><i class="fas fa-trash"></i></button>
+            </div>
+            
+            <!-- Chat Area -->
+            <div id="chat-container" class="flex-1 overflow-y-auto p-6 space-y-6">
+                <!-- Welcome Message -->
+                <div class="chat-ai chat-bubble">
+                    <p><strong>Teknisi Bot:</strong></p>
+                    <p>Halo, Bos! Ada HP rusak apa hari ini? Saya bisa bantu analisa kerusakan, cari solusi jalur, atau estimasi harga servis.</p>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="p-4 bg-white border-t border-slate-200">
+                <div class="relative">
+                    <textarea id="ai-input" rows="1" placeholder="Contoh: Samsung A50 tidak bisa cas, sudah ganti konektor tetap sama..." class="block w-full p-4 pr-12 text-sm text-slate-800 bg-slate-50 rounded-xl border border-slate-300 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none overflow-hidden focus:bg-white transition-colors shadow-sm" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'" onkeydown="handleChatKey(event)"></textarea>
+                    <button onclick="sendChat()" id="send-btn" class="absolute right-2 bottom-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-1.5 transition-colors shadow-sm shadow-blue-200">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div id="api-warning" class="hidden mt-2 text-xs text-red-500 flex items-center gap-1">
+                    <i class="fas fa-exclamation-triangle"></i> API Key Pollinations belum diatur. <button onclick="openApiKeyModal()" class="underline font-bold hover:text-red-700">Set di sini</button>.
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MODAL: ADD/EDIT SERVICE -->
+    <div id="service-modal" class="modal fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+        <div class="modal-content bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden border border-slate-200">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h3 class="font-bold text-lg text-slate-800" id="modal-title">Tambah Servis Baru</h3>
+                <button onclick="closeModal('service-modal')" class="text-slate-400 hover:text-slate-700 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-6 space-y-5">
+                <input type="hidden" id="service-id">
+                
+                <div class="grid grid-cols-2 gap-5">
+                    <div>
+                        <label class="block mb-2 text-xs font-bold text-slate-600 uppercase tracking-wide">Nama Pelanggan</label>
+                        <input type="text" id="inp-customer" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none focus:bg-white transition-colors" required>
+                    </div>
+                    <div>
+                        <label class="block mb-2 text-xs font-bold text-slate-600 uppercase tracking-wide">No. HP / WA</label>
+                        <input type="text" id="inp-contact" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none focus:bg-white transition-colors">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block mb-2 text-xs font-bold text-slate-600 uppercase tracking-wide">Tipe HP / Unit</label>
+                    <input type="text" id="inp-device" placeholder="Contoh: iPhone 11, Redmi Note 10..." class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none focus:bg-white transition-colors" required>
+                </div>
+
+                <div>
+                    <label class="block mb-2 text-xs font-bold text-slate-600 uppercase tracking-wide">Keluhan / Kerusakan</label>
+                    <textarea id="inp-issue" rows="3" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none resize-none focus:bg-white transition-colors" required></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-5">
+                    <div>
+                        <label class="block mb-2 text-xs font-bold text-slate-600 uppercase tracking-wide">Estimasi Biaya (Rp)</label>
+                        <input type="number" id="inp-price" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none focus:bg-white transition-colors">
+                    </div>
+                    <div>
+                        <label class="block mb-2 text-xs font-bold text-slate-600 uppercase tracking-wide">Status</label>
+                        <select id="inp-status" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none focus:bg-white transition-colors">
+                            <option value="pending">Pending (Antri)</option>
+                            <option value="process">Sedang Dikerjakan</option>
+                            <option value="done">Selesai</option>
+                            <option value="cancel">Batal</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="p-5 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50">
+                <button onclick="closeModal('service-modal')" class="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-lg transition-colors">Batal</button>
+                <button onclick="saveService()" class="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-lg shadow-blue-200">Simpan Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: STOCK ADD/EDIT -->
+    <div id="stock-modal" class="modal fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+        <div class="modal-content bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-slate-200">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h3 class="font-bold text-lg text-slate-800" id="stock-modal-title">Input Stok LCD</h3>
+                <button onclick="closeModal('stock-modal')" class="text-slate-400 hover:text-slate-700 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-6 space-y-5">
+                <input type="hidden" id="stock-id">
+                
+                <div>
+                    <label class="block mb-2 text-xs font-bold text-slate-600 uppercase tracking-wide">Merk</label>
+                    <select id="inp-stock-brand" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none focus:bg-white transition-colors">
+                        <option value="Oppo">Oppo</option>
+                        <option value="Realme">Realme</option>
+                        <option value="Vivo">Vivo</option>
+                        <option value="Other">Lainnya</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block mb-2 text-xs font-bold text-slate-600 uppercase tracking-wide">Tipe HP (Model)</label>
+                    <input type="text" id="inp-stock-model" placeholder="Misal: A53, Y12, C11" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none focus:bg-white transition-colors">
+                </div>
+
+                <div>
+                    <label class="block mb-2 text-xs font-bold text-slate-600 uppercase tracking-wide">Jumlah Stok</label>
+                    <input type="number" id="inp-stock-qty" value="1" min="0" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none focus:bg-white transition-colors">
+                </div>
+
+                <div class="grid grid-cols-2 gap-5">
+                    <div>
+                        <label class="block mb-2 text-xs font-bold text-slate-600 uppercase tracking-wide">Harga Modal</label>
+                        <input type="number" id="inp-stock-price" placeholder="Rp" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none focus:bg-white transition-colors">
+                    </div>
+                    <div>
+                        <label class="block mb-2 text-xs font-bold text-slate-600 uppercase tracking-wide">Harga Jual</label>
+                        <input type="number" id="inp-stock-sell-price" placeholder="Rp" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none focus:bg-white transition-colors">
+                    </div>
+                </div>
+            </div>
+            <div class="p-5 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50">
+                <button onclick="closeModal('stock-modal')" class="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-lg transition-colors">Batal</button>
+                <button onclick="saveStock()" class="px-5 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-lg shadow-green-200">Simpan Stok</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: API KEY -->
+    <div id="apikey-modal" class="modal fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+        <div class="modal-content bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-200">
+            <div class="p-5 border-b border-slate-100 bg-slate-50/50">
+                <h3 class="font-bold text-lg text-slate-800">Pengaturan API Key</h3>
+                <p class="text-xs text-slate-500 mt-1">Dibutuhkan untuk akses Asisten AI.</p>
+            </div>
+            <div class="p-6">
+                <label class="block mb-2 text-xs font-bold text-slate-600 uppercase tracking-wide">Pollinations API Key</label>
+                <input type="password" id="inp-apikey" placeholder="Masukkan key di sini..." class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none focus:bg-white transition-colors">
+                <div class="mt-4 text-xs">
+                    <a href="https://enter.pollinations.ai/authorize" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 font-bold">
+                        <i class="fas fa-external-link-alt"></i> Dapatkan API Key Gratis
+                    </a>
+                </div>
+            </div>
+            <div class="p-5 border-t border-slate-100 flex justify-end bg-slate-50/50">
+                <button onclick="saveApiKey()" class="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-lg shadow-blue-200">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // === STATE MANAGEMENT ===
+        let currentUser = null; // { id: 'demo' | 'google_id', name: '...', picture: '...' }
+        const DEMO_USER = { id: 'demo', name: 'Teknisi Demo', picture: null };
+        const GOOGLE_CLIENT_ID = "673510116130-tsm35f0faooea3i999e7apkdc98bk8no.apps.googleusercontent.com"; 
+        
+        // Data arrays (Loaded on init based on user)
+        let services = [];
+        let stockItems = [];
+        let apiKey = '';
+        let chatHistory = [];
+
+        // Helper to get storage key based on current user
+        function getStorageKey(key) {
+            if (!currentUser || currentUser.id === 'demo') return `teknisios_${key}`;
+            return `teknisios_user_${currentUser.id}_${key}`;
+        }
+
+        // === INITIALIZATION ===
+        document.addEventListener('DOMContentLoaded', () => {
+            initGoogleLoginUI(); 
+
+            // Check for existing session
+            const savedSession = localStorage.getItem('teknisios_user_session');
+            if (savedSession) {
+                try {
+                    currentUser = JSON.parse(savedSession);
+                    initAppData();
+                } catch (e) {
+                    console.error("Session error", e);
+                    localStorage.removeItem('teknisios_user_session');
+                    showLoginOverlay();
+                }
+            } else {
+                showLoginOverlay();
+            }
+            
+            // Set current date
+            const dateOpts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('current-date').innerText = new Date().toLocaleDateString('id-ID', dateOpts);
+        });
+
+        // === AUTH FUNCTIONS ===
+        function initGoogleLoginUI() {
+            const container = document.getElementById('google-login-container');
+            container.innerHTML = ''; // Clear previous content
+
+            // Prepare container for Real Google Button
+            const btnWrapper = document.createElement('div');
+            // Fixed: use h-10 instead of h-[40px]
+            btnWrapper.className = 'flex justify-center mb-6 h-10 w-full'; // Fixed height placeholder
+            container.appendChild(btnWrapper);
+
+            // Render Function using JS API
+            const renderGsiButton = () => {
+                if (window.google && window.google.accounts) {
+                    try {
+                        google.accounts.id.initialize({
+                            client_id: GOOGLE_CLIENT_ID,
+                            callback: handleCredentialResponse,
+                            auto_select: false,
+                            cancel_on_tap_outside: false
+                        });
+                        google.accounts.id.renderButton(
+                            btnWrapper,
+                            { 
+                                theme: "outline", 
+                                size: "large", 
+                                width: 320, 
+                                type: "standard", 
+                                shape: "rectangular", 
+                                text: "sign_in_with", 
+                                logo_alignment: "left" 
+                            }
+                        );
+                    } catch (e) {
+                        console.error("GSI Render Error:", e);
+                        btnWrapper.innerHTML = '<span class="text-red-500 text-xs">Gagal memuat tombol Google. Cek konsol.</span>';
+                    }
+                }
+            };
+
+            // Check if library is loaded, otherwise wait for it
+            if (window.google && window.google.accounts) {
+                renderGsiButton();
+            } else {
+                // Retry every 100ms for up to 5 seconds
+                let attempts = 0;
+                const checkInterval = setInterval(() => {
+                    attempts++;
+                    if (window.google && window.google.accounts) {
+                        clearInterval(checkInterval);
+                        renderGsiButton();
+                    } else if (attempts > 50) {
+                        clearInterval(checkInterval);
+                        console.warn("Google Sign-In script timeout");
+                        btnWrapper.innerHTML = '<div class="text-xs text-slate-400">Loading Google Sign-In... (Timeout)</div>';
+                    }
+                }, 100);
+            }
+        }
+
+        function showLoginOverlay() {
+            document.getElementById('login-overlay').classList.remove('hidden');
+            document.getElementById('login-overlay').classList.remove('opacity-0');
+            // Hide App UI
+            document.getElementById('sidebar').style.display = 'none';
+            document.getElementById('main-content').style.display = 'none';
+        }
+
+        function hideLoginOverlay() {
+            document.getElementById('login-overlay').classList.add('opacity-0');
+            setTimeout(() => {
+                document.getElementById('login-overlay').classList.add('hidden');
+            }, 500);
+        }
+
+        function loginAsDemo() {
+            currentUser = DEMO_USER;
+            localStorage.setItem('teknisios_user_session', JSON.stringify(currentUser));
+            initAppData();
+        }
+
+        // Google Auth Callback (Real)
+        function handleCredentialResponse(response) {
+            try {
+                const responsePayload = parseJwt(response.credential);
+                currentUser = {
+                    id: responsePayload.sub,
+                    name: responsePayload.name,
+                    picture: responsePayload.picture,
+                    email: responsePayload.email
+                };
+                localStorage.setItem('teknisios_user_session', JSON.stringify(currentUser));
+                initAppData();
+            } catch (e) {
+                console.error("Login Failed", e);
+                alert("Gagal login dengan Google.");
+            }
+        }
+
+        function parseJwt (token) {
+            var base64Url = token.split('.')[1];
+            var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            var jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload);
+        }
+
+        function logout() {
+            if(confirm("Yakin ingin keluar?")) {
+                localStorage.removeItem('teknisios_user_session');
+                currentUser = null;
+                services = [];
+                stockItems = [];
+                location.reload(); // Reload to reset state cleanly
+            }
+        }
+
+        function initAppData() {
+            hideLoginOverlay();
+            // Show App UI
+            document.getElementById('sidebar').style.display = 'block'; // Or 'flex' if needed, but 'block' works for fixed sidebar
+            document.getElementById('main-content').style.display = 'flex'; // Main content is flex column
+
+            updateUserProfileUI();
+            
+            // Load Data based on User ID
+            services = JSON.parse(localStorage.getItem(getStorageKey('services'))) || [];
+            stockItems = JSON.parse(localStorage.getItem(getStorageKey('stock'))) || [];
+            
+            apiKey = localStorage.getItem(getStorageKey('pollinations_key')) || '';
+            
+            // Init Chat
+            chatHistory = [
+                { 
+                    role: "system", 
+                    content: "Kamu adalah asisten teknisi HP profesional. Kamu ahli dalam diagnosa hardware dan software smartphone (iPhone, Android). Kamu juga bisa membantu cek stok LCD jika pengguna bertanya (data stok tidak tersedia langsung untukmu, arahkan pengguna untuk cek tab Stok LCD). Berikan solusi teknis, perkiraan harga wajar (dalam Rupiah), dan saran perbaikan. Jawaban harus singkat, padat, dan membantu." 
+                }
+            ];
+
+            // Render Views
+            renderDashboard();
+            renderTable();
+            renderStockTable();
+            updateApiWarning();
+            
+            // Check URL param for key redirect (handle once)
+            const urlParams = new URLSearchParams(window.location.search);
+            const keyParam = urlParams.get('key') || (window.location.hash.includes('key=') ? window.location.hash.split('key=')[1] : null);
+            if(keyParam) {
+                saveApiKeyVal(keyParam);
+                window.history.replaceState({}, document.title, window.location.pathname);
+                alert("API Key berhasil tersimpan untuk akun ini!");
+            }
+        }
+
+        function updateUserProfileUI() {
+            const profileSection = document.getElementById('user-profile-section');
+            const avatar = document.getElementById('user-avatar');
+            const name = document.getElementById('user-name');
+            const role = document.getElementById('user-role');
+
+            if (currentUser) {
+                profileSection.classList.remove('hidden');
+                name.innerText = currentUser.name;
+                role.innerText = currentUser.id === 'demo' ? 'Mode Demo' : 'Teknisi';
+                
+                if (currentUser.picture) {
+                    avatar.src = currentUser.picture;
+                } else {
+                    // Fallback avatar
+                    avatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=random`;
+                }
+            }
+        }
+
+        // === NAVIGATION ===
+        function switchView(viewName) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`view-${viewName}`).classList.remove('hidden');
+            
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.remove('bg-blue-50', 'text-blue-700', 'font-medium');
+                el.classList.add('text-slate-500');
+            });
+            document.getElementById(`nav-${viewName}`).classList.add('bg-blue-50', 'text-blue-700', 'font-medium');
+            document.getElementById(`nav-${viewName}`).classList.remove('text-slate-500');
+
+            if(viewName === 'dashboard') renderDashboard();
+            if(viewName === 'stock') renderStockTable();
+            
+            // Close mobile sidebar if open
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('mobile-backdrop');
+            if(!sidebar.classList.contains('-translate-x-full')) {
+               sidebar.classList.add('-translate-x-full');
+               backdrop.classList.add('hidden');
+            }
+        }
+        
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('mobile-backdrop');
+            sidebar.classList.toggle('-translate-x-full');
+            backdrop.classList.toggle('hidden');
+        }
+
+        // === CRUD SERVICES ===
+        function renderTable() {
+            const tbody = document.getElementById('services-table-body');
+            const searchVal = document.getElementById('search-input').value.toLowerCase();
+            tbody.innerHTML = '';
+
+            const filtered = services.filter(s => 
+                s.customer.toLowerCase().includes(searchVal) || 
+                s.device.toLowerCase().includes(searchVal) || 
+                s.issue.toLowerCase().includes(searchVal)
+            ).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if(filtered.length === 0) {
+                document.getElementById('empty-state').classList.remove('hidden');
+                document.getElementById('empty-state').classList.add('flex');
+            } else {
+                document.getElementById('empty-state').classList.add('hidden');
+                document.getElementById('empty-state').classList.remove('flex');
+                
+                filtered.forEach(s => {
+                    const row = document.createElement('tr');
+                    row.className = "hover:bg-slate-50 transition-colors group";
+                    
+                    let badgeClass = 'badge-pending';
+                    let statusLabel = 'Pending';
+                    if(s.status === 'process') { badgeClass = 'badge-process'; statusLabel = 'Proses'; }
+                    else if(s.status === 'done') { badgeClass = 'badge-done'; statusLabel = 'Selesai'; }
+                    else if(s.status === 'cancel') { badgeClass = 'badge-cancel'; statusLabel = 'Batal'; }
+
+                    const price = s.price ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(s.price) : '-';
+                    const date = new Date(s.date).toLocaleDateString('id-ID', {day: 'numeric', month: 'short'});
+
+                    // Quick Action Button Logic
+                    let actionBtn = '';
+                    if (s.status === 'pending') {
+                        actionBtn = `<button onclick="quickStatusUpdate('${s.id}', 'process')" title="Mulai Kerjakan" class="w-8 h-8 rounded bg-yellow-100 text-yellow-700 hover:bg-yellow-200 transition-colors flex items-center justify-center shadow-sm"><i class="fas fa-play"></i></button>`;
+                    } else if (s.status === 'process') {
+                        actionBtn = `<button onclick="quickStatusUpdate('${s.id}', 'done')" title="Selesai" class="w-8 h-8 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors flex items-center justify-center shadow-sm"><i class="fas fa-check"></i></button>`;
+                    }
+
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-slate-500 font-mono text-xs">${date}</td>
+                        <td class="px-6 py-4 font-medium text-slate-900">${s.customer}<br><span class="text-xs text-slate-500 font-normal">${s.contact || ''}</span></td>
+                        <td class="px-6 py-4">
+                            <div class="text-slate-800 font-medium">${s.device}</div>
+                            <div class="text-xs text-slate-500 truncate" style="max-width: 200px;">${s.issue}</div>
+                        </td>
+                        <td class="px-6 py-4 font-mono text-slate-700">${price}</td>
+                        <td class="px-6 py-4"><span class="badge ${badgeClass}"><span class="w-1.5 h-1.5 rounded-full bg-current"></span>${statusLabel}</span></td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                ${actionBtn}
+                                <button onclick="askAI('${s.id}')" title="Tanya AI Solusinya" class="w-8 h-8 rounded bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-colors flex items-center justify-center shadow-sm border border-blue-100">
+                                    <i class="fas fa-magic"></i>
+                                </button>
+                                <button onclick="editService('${s.id}')" title="Edit" class="w-8 h-8 rounded bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors flex items-center justify-center shadow-sm border border-slate-200">
+                                    <i class="fas fa-pencil-alt"></i>
+                                </button>
+                                <button onclick="deleteService('${s.id}')" title="Hapus" class="w-8 h-8 rounded bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-colors flex items-center justify-center shadow-sm border border-red-100">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+        }
+
+        // Logic baru: Deduct stock jika servis selesai (Improved Matching)
+        function tryDeductStock(service) {
+            // Gabungkan teks dari device dan kerusakan untuk pencarian
+            const textToSearch = (service.device + " " + service.issue).toLowerCase();
+            
+            // Cari kandidat yang cocok dengan sistem token
+            const candidates = stockItems.map((item, index) => {
+                // Pecah model stock menjadi kata-kata kunci
+                const modelTokens = item.model.toLowerCase().split(/[\s/\-,]+/).filter(t => t.length > 0);
+                if (modelTokens.length === 0) return null;
+
+                // Cek apakah SEMUA token dari Model Stock ada di deskripsi servis
+                const allTokensFound = modelTokens.every(token => textToSearch.includes(token));
+                
+                if (!allTokensFound) return null;
+                
+                // Hitung skor kecocokan
+                let score = item.model.length; 
+                
+                // Bonus score jika Brand juga cocok (eksplisit)
+                if (item.brand && item.brand !== 'all' && item.brand !== 'Other') {
+                    if (textToSearch.includes(item.brand.toLowerCase())) {
+                        score += 10;
+                    }
+                }
+                
+                return { index, item, score };
+            }).filter(c => c !== null);
+
+            if (candidates.length > 0) {
+                // Urutkan berdasarkan skor tertinggi (match paling kuat/spesifik)
+                candidates.sort((a, b) => b.score - a.score);
+                
+                const bestMatch = candidates[0];
+                const item = bestMatch.item;
+                const index = bestMatch.index;
+
+                if (item.qty > 0) {
+                    item.qty -= 1;
+                    stockItems[index] = item;
+                    localStorage.setItem(getStorageKey('stock'), JSON.stringify(stockItems));
+                    
+                    // Notifikasi sukses
+                    alert(`✅ STOK TERPAKAI:\n---------------------------\nItem: ${item.brand} ${item.model}\nSisa Stok: ${item.qty}\n---------------------------`);
+                    
+                    // Refresh tampilan jika perlu
+                    renderStockTable();
+                    renderDashboard();
+                } else {
+                    alert(`⚠️ PERINGATAN STOK:\nStok untuk ${item.brand} ${item.model} sudah 0.\nData stok tidak dikurangi.`);
+                }
+            }
+        }
+
+        function quickStatusUpdate(id, newStatus) {
+            const idx = services.findIndex(s => s.id == id);
+            if(idx > -1) {
+                const oldStatus = services[idx].status;
+                if(newStatus === 'done' && !confirm("Tandai servis ini sebagai Selesai?")) return;
+                
+                // Trigger stock logic
+                if (oldStatus !== 'done' && newStatus === 'done') {
+                    tryDeductStock(services[idx]);
+                }
+
+                services[idx].status = newStatus;
+                localStorage.setItem(getStorageKey('services'), JSON.stringify(services));
+                renderTable();
+                renderDashboard();
+            }
+        }
+
+        // === CRUD STOCK ===
+        function renderStockTable() {
+            const tbody = document.getElementById('stock-table-body');
+            const filterBrand = document.getElementById('stock-filter-brand').value;
+            const searchVal = document.getElementById('stock-search').value.toLowerCase();
+            tbody.innerHTML = '';
+
+            const filtered = stockItems.filter(s => {
+                const matchBrand = filterBrand === 'all' || s.brand === filterBrand;
+                const matchSearch = s.model.toLowerCase().includes(searchVal) || s.brand.toLowerCase().includes(searchVal);
+                return matchBrand && matchSearch;
+            }).sort((a, b) => a.brand.localeCompare(b.brand) || a.model.localeCompare(b.model));
+
+            if(filtered.length === 0) {
+                document.getElementById('stock-empty-state').classList.remove('hidden');
+                document.getElementById('stock-empty-state').classList.add('flex');
+            } else {
+                document.getElementById('stock-empty-state').classList.add('hidden');
+                document.getElementById('stock-empty-state').classList.remove('flex');
+
+                filtered.forEach(s => {
+                    const row = document.createElement('tr');
+                    row.className = "hover:bg-slate-50 transition-colors group";
+                    
+                    let brandClass = 'brand-other';
+                    if(s.brand === 'Oppo') brandClass = 'brand-oppo';
+                    if(s.brand === 'Vivo') brandClass = 'brand-vivo';
+                    if(s.brand === 'Realme') brandClass = 'brand-realme';
+
+                    const price = s.price ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(s.price) : '-';
+                    const sellPrice = s.sellPrice ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(s.sellPrice) : '-';
+                    // Update Logic: Alert if <= 1 (Sisa 1 atau 0)
+                    const qtyClass = s.qty <= 1 ? 'text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded' : 'text-slate-700 font-medium';
+
+                    row.innerHTML = `
+                        <td class="px-6 py-4"><span class="brand-badge ${brandClass}">${s.brand}</span></td>
+                        <td class="px-6 py-4 font-medium text-slate-900">${s.model}</td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center gap-3">
+                                <button onclick="quickUpdateStock('${s.id}', -1)" class="text-slate-400 hover:text-slate-900 w-6 h-6 rounded hover:bg-slate-200 flex items-center justify-center transition-colors"><i class="fas fa-minus text-xs"></i></button>
+                                <span class="${qtyClass} text-center inline-block" style="min-width: 24px;">${s.qty}</span>
+                                <button onclick="quickUpdateStock('${s.id}', 1)" class="text-slate-400 hover:text-slate-900 w-6 h-6 rounded hover:bg-slate-200 flex items-center justify-center transition-colors"><i class="fas fa-plus text-xs"></i></button>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 font-mono text-slate-500 text-xs">${price}</td>
+                        <td class="px-6 py-4 font-mono text-emerald-600 text-xs font-bold">${sellPrice}</td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="editStock('${s.id}')" class="text-slate-400 hover:text-blue-600 transition-colors w-8 h-8 rounded-full hover:bg-blue-50" title="Edit">
+                                <i class="fas fa-pencil-alt"></i>
+                            </button>
+                            <button onclick="deleteStock('${s.id}')" class="text-slate-300 hover:text-red-500 transition-colors w-8 h-8 rounded-full hover:bg-red-50" title="Hapus">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+        }
+
+        function renderDashboard() {
+            // Service Stats
+            document.getElementById('dash-pending').innerText = services.filter(s => s.status === 'pending').length;
+            document.getElementById('dash-process').innerText = services.filter(s => s.status === 'process').length;
+            
+            const today = new Date().toDateString();
+            document.getElementById('dash-done').innerText = services.filter(s => s.status === 'done' && new Date(s.date).toDateString() === today).length;
+
+            // --- STOCK STATS (UPDATED: Alert if <= 1) ---
+            const lowStockItems = stockItems.filter(s => s.qty <= 1);
+            document.getElementById('dash-low-stock-count').innerText = lowStockItems.length;
+
+            // Total Stock Count (New)
+            const totalStock = stockItems.reduce((acc, curr) => acc + (parseInt(curr.qty) || 0), 0);
+            const totalStockEl = document.getElementById('dash-total-stock');
+            if(totalStockEl) totalStockEl.innerText = totalStock;
+
+            // Low Stock Detailed List
+            const lowStockList = document.getElementById('dash-low-stock-list');
+            const lowStockEmpty = document.getElementById('dash-low-stock-empty');
+            
+            if(lowStockList) {
+                lowStockList.innerHTML = '';
+                if(lowStockItems.length === 0) {
+                    lowStockEmpty.classList.remove('hidden');
+                } else {
+                    lowStockEmpty.classList.add('hidden');
+                    lowStockItems.forEach(item => {
+                        let brandClass = 'text-slate-500';
+                        if(item.brand === 'Oppo') brandClass = 'text-green-600';
+                        if(item.brand === 'Vivo') brandClass = 'text-blue-600';
+                        if(item.brand === 'Realme') brandClass = 'text-yellow-600';
+
+                        lowStockList.innerHTML += `
+                            <li class="px-6 py-3 flex justify-between items-center hover:bg-slate-50 transition-colors">
+                                <div>
+                                    <span class="text-xs font-bold uppercase ${brandClass}">${item.brand}</span>
+                                    <div class="text-sm font-medium text-slate-800">${item.model}</div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs text-slate-400">Sisa:</span>
+                                    <span class="text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded text-sm">${item.qty}</span>
+                                </div>
+                            </li>
+                        `;
+                    });
+                }
+            }
+
+            // Revenue Calc
+            const totalRevenue = services
+                .filter(s => s.status === 'done')
+                .reduce((sum, s) => sum + (parseInt(s.price) || 0), 0);
+            
+            const revEl = document.getElementById('dash-revenue');
+            if(revEl) revEl.innerText = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalRevenue);
+
+            const tbody = document.getElementById('dash-table-body');
+            tbody.innerHTML = '';
+            services.slice(0, 5).forEach(s => { // Top 5 newest
+                let badgeClass = 'bg-yellow-100 text-yellow-700';
+                if(s.status==='done') badgeClass = 'bg-green-100 text-green-700';
+                if(s.status==='process') badgeClass = 'bg-blue-100 text-blue-700';
+                
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="px-6 py-3 font-medium text-slate-800">${s.customer}</td>
+                        <td class="px-6 py-3 text-slate-500">${s.device}</td>
+                        <td class="px-6 py-3"><span class="text-xs px-2 py-1 rounded font-bold uppercase ${badgeClass}">${s.status}</span></td>
+                    </tr>
+                `;
+            });
+        }
+
+        function saveService() {
+            const id = document.getElementById('service-id').value;
+            const customer = document.getElementById('inp-customer').value;
+            const device = document.getElementById('inp-device').value;
+            const issue = document.getElementById('inp-issue').value;
+            const price = document.getElementById('inp-price').value;
+            const status = document.getElementById('inp-status').value;
+            const contact = document.getElementById('inp-contact').value;
+
+            if(!customer || !device || !issue) return alert("Mohon lengkapi data wajib.");
+
+            if(id) {
+                // Update
+                const idx = services.findIndex(s => s.id == id);
+                if(idx > -1) {
+                    const oldStatus = services[idx].status;
+                    services[idx] = { ...services[idx], customer, device, issue, price, status, contact };
+                    
+                    if (oldStatus !== 'done' && status === 'done') {
+                        tryDeductStock(services[idx]);
+                    }
+                }
+            } else {
+                // Create
+                const newService = {
+                    id: Date.now(),
+                    date: new Date().toISOString(),
+                    customer, device, issue, price, status, contact
+                };
+                services.unshift(newService);
+                
+                if (status === 'done') {
+                    tryDeductStock(newService);
+                }
+            }
+
+            localStorage.setItem(getStorageKey('services'), JSON.stringify(services));
+            closeModal('service-modal');
+            renderTable();
+            renderDashboard();
+        }
+
+        function editService(id) {
+            const s = services.find(s => s.id == id);
+            if(!s) return;
+            document.getElementById('service-id').value = s.id;
+            document.getElementById('inp-customer').value = s.customer;
+            document.getElementById('inp-contact').value = s.contact || '';
+            document.getElementById('inp-device').value = s.device;
+            document.getElementById('inp-issue').value = s.issue;
+            document.getElementById('inp-price').value = s.price;
+            document.getElementById('inp-status').value = s.status;
+            openModal('add'); // Reusing 'add' logic but logic handles edit via hidden ID
+        }
+
+        function deleteService(id) {
+            if(confirm("Hapus data servis ini?")) {
+                services = services.filter(s => s.id != id);
+                localStorage.setItem(getStorageKey('services'), JSON.stringify(services));
+                renderTable();
+                renderDashboard();
+            }
+        }
+
+        // === STOCK LOGIC ===
+        function openStockModal() {
+            document.getElementById('stock-id').value = '';
+            document.getElementById('stock-modal-title').innerText = 'Input Stok LCD';
+            document.getElementById('inp-stock-brand').value = 'Oppo';
+            document.getElementById('inp-stock-model').value = '';
+            document.getElementById('inp-stock-qty').value = 1;
+            document.getElementById('inp-stock-price').value = '';
+            document.getElementById('inp-stock-sell-price').value = '';
+            document.getElementById('stock-modal').classList.add('active');
+        }
+
+        function editStock(id) {
+            const s = stockItems.find(item => item.id == id);
+            if(!s) return;
+            
+            document.getElementById('stock-id').value = s.id;
+            document.getElementById('stock-modal-title').innerText = 'Edit Stok LCD';
+            document.getElementById('inp-stock-brand').value = s.brand;
+            document.getElementById('inp-stock-model').value = s.model;
+            document.getElementById('inp-stock-qty').value = s.qty;
+            document.getElementById('inp-stock-price').value = s.price;
+            document.getElementById('inp-stock-sell-price').value = s.sellPrice || '';
+            
+            document.getElementById('stock-modal').classList.add('active');
+        }
+
+        function saveStock() {
+            const id = document.getElementById('stock-id').value;
+            const brand = document.getElementById('inp-stock-brand').value;
+            const model = document.getElementById('inp-stock-model').value;
+            const qty = parseInt(document.getElementById('inp-stock-qty').value) || 0;
+            const price = parseInt(document.getElementById('inp-stock-price').value) || 0;
+            const sellPrice = parseInt(document.getElementById('inp-stock-sell-price').value) || 0;
+
+            if(!model) return alert("Nama Tipe/Model wajib diisi.");
+
+            if(id) {
+                // Update Existing Stock
+                const idx = stockItems.findIndex(s => s.id == id);
+                if(idx > -1) {
+                    stockItems[idx] = { ...stockItems[idx], brand, model, qty, price, sellPrice };
+                }
+            } else {
+                // Create New Stock
+                const newStock = {
+                    id: 'stk-' + Date.now(),
+                    brand, model, qty, price, sellPrice
+                };
+                stockItems.push(newStock);
+            }
+            
+            localStorage.setItem(getStorageKey('stock'), JSON.stringify(stockItems));
+            closeModal('stock-modal');
+            renderStockTable();
+            renderDashboard(); // Update dashboard alerts
+        }
+
+        function deleteStock(id) {
+            if(confirm("Hapus stok item ini?")) {
+                stockItems = stockItems.filter(s => s.id != id);
+                localStorage.setItem(getStorageKey('stock'), JSON.stringify(stockItems));
+                renderStockTable();
+                renderDashboard();
+            }
+        }
+
+        function quickUpdateStock(id, change) {
+            const idx = stockItems.findIndex(s => s.id == id);
+            if(idx > -1) {
+                let newQty = stockItems[idx].qty + change;
+                if(newQty < 0) newQty = 0;
+                stockItems[idx].qty = newQty;
+                localStorage.setItem(getStorageKey('stock'), JSON.stringify(stockItems));
+                renderStockTable();
+                renderDashboard();
+            }
+        }
+
+        // === MODALS ===
+        function openModal(mode) {
+            const modal = document.getElementById('service-modal');
+            const title = document.getElementById('modal-title');
+            if(mode === 'add') {
+                title.innerText = 'Tambah Servis Baru';
+                document.getElementById('service-id').value = '';
+                document.getElementById('inp-customer').value = '';
+                document.getElementById('inp-contact').value = '';
+                document.getElementById('inp-device').value = '';
+                document.getElementById('inp-issue').value = '';
+                document.getElementById('inp-price').value = '';
+                document.getElementById('inp-status').value = 'pending';
+            } else {
+                title.innerText = 'Edit Data Servis';
+            }
+            modal.classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function openApiKeyModal() {
+            document.getElementById('inp-apikey').value = apiKey;
+            document.getElementById('apikey-modal').classList.add('active');
+        }
+
+        function saveApiKey() {
+            const val = document.getElementById('inp-apikey').value.trim();
+            saveApiKeyVal(val);
+            document.getElementById('apikey-modal').classList.remove('active');
+        }
+        
+        function saveApiKeyVal(val) {
+            apiKey = val;
+            localStorage.setItem(getStorageKey('pollinations_key'), val);
+            updateApiWarning();
+        }
+
+        function updateApiWarning() {
+            const warn = document.getElementById('api-warning');
+            if(!apiKey) warn.classList.remove('hidden');
+            else warn.classList.add('hidden');
+        }
+
+        // === AI CHAT LOGIC ===
+        function handleChatKey(e) {
+            if(e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendChat();
+            }
+        }
+
+        function askAI(id) {
+            const s = services.find(s => s.id == id);
+            if(!s) return;
+            
+            // Switch to Chat Tab
+            switchView('ai-assistant');
+            
+            const prompt = `Saya punya kasus servis: HP ${s.device}, Keluhan: "${s.issue}". Tolong berikan analisa kemungkinan kerusakan, sparepart yang dibutuhkan, dan estimasi biaya (range harga) untuk perbaikan ini.`;
+            
+            const input = document.getElementById('ai-input');
+            input.value = prompt;
+            input.style.height = 'auto'; 
+            input.style.height = input.scrollHeight + 'px';
+            // Optional: Auto send
+            // sendChat(); 
+        }
+
+        async function sendChat() {
+            const inputEl = document.getElementById('ai-input');
+            const text = inputEl.value.trim();
+            if(!text) return;
+
+            if(!apiKey) {
+                alert("Masukkan API Key Pollinations di Pengaturan terlebih dahulu.");
+                openApiKeyModal();
+                return;
+            }
+
+            // User UI
+            appendChat('user', text);
+            inputEl.value = '';
+            inputEl.style.height = 'auto';
+            chatHistory.push({ role: "user", content: text });
+
+            // Loading UI
+            const loaderId = appendLoader();
+            const scrollArea = document.getElementById('chat-container');
+            scrollArea.scrollTop = scrollArea.scrollHeight;
+
+            try {
+                const response = await fetch('https://gen.pollinations.ai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        messages: chatHistory,
+                        model: 'openai', // Menggunakan model teks standar
+                        temperature: 0.7
+                    })
+                });
+
+                if(!response.ok) throw new Error("Gagal menghubungi AI");
+
+                const data = await response.json();
+                const reply = data.choices[0].message.content;
+
+                removeLoader(loaderId);
+                appendChat('ai', reply);
+                chatHistory.push({ role: "assistant", content: reply });
+
+            } catch (error) {
+                removeLoader(loaderId);
+                appendChat('ai', "**Error:** Gagal terhubung ke AI. Cek koneksi internet atau validitas API Key.");
+                console.error(error);
+            }
+        }
+
+        function appendChat(role, text) {
+            const container = document.getElementById('chat-container');
+            const div = document.createElement('div');
+            div.className = `chat-bubble ${role === 'user' ? 'chat-user' : 'chat-ai'} prose prose-slate`;
+            
+            if(role === 'ai') {
+                div.innerHTML = DOMPurify.sanitize(marked.parse(text));
+            } else {
+                div.textContent = text;
+            }
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function appendLoader() {
+            const container = document.getElementById('chat-container');
+            const div = document.createElement('div');
+            const id = 'loader-' + Date.now();
+            div.id = id;
+            div.className = 'chat-bubble chat-ai';
+            div.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+            container.appendChild(div);
+            return id;
+        }
+
+        function removeLoader(id) {
+            const el = document.getElementById(id);
+            if(el) el.remove();
+        }
+
+        function clearChat() {
+            if(confirm("Hapus riwayat chat?")) {
+                document.getElementById('chat-container').innerHTML = `
+                <div class="chat-ai chat-bubble">
+                    <p><strong>Teknisi Bot:</strong></p>
+                    <p>Halo, Bos! Ada HP rusak apa hari ini? Saya bisa bantu analisa kerusakan, cari solusi jalur, atau estimasi harga servis.</p>
+                </div>`;
+                chatHistory = [chatHistory[0]]; // Keep system prompt
+            }
+        }
+
+        // Listener for multi-tab sync
+        window.addEventListener('storage', (e) => {
+            if (e.key && e.key.startsWith('teknisios_')) {
+                // Reload data depending on key if logged in
+                if (currentUser) {
+                     services = JSON.parse(localStorage.getItem(getStorageKey('services'))) || [];
+                     stockItems = JSON.parse(localStorage.getItem(getStorageKey('stock'))) || [];
+                     renderDashboard();
+                     renderTable();
+                     renderStockTable();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
